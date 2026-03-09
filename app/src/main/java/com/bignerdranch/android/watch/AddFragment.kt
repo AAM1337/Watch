@@ -10,6 +10,7 @@ import androidx.navigation.fragment.findNavController
 import DataBase.AppDatabase
 import DataBase.Movie
 import DataBase.MovieRepository
+import com.bignerdranch.android.watch.databinding.FragmentAddBinding
 
 import com.bumptech.glide.Glide
 
