@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/mainFragment">
+
+    <fragment android:id="@+id/mainFragment"
+        android:name=".ui.MainFragment">
+        <action android:id="@+id/action_main_to_add"
+            app:destination="@id/addFragment"/>
+    </fragment>
+
+    <fragment android:id="@+id/addFragment"
+        android:name=".ui.AddFragment">
+        <action android:id="@+id/action_add_to_search"
+            app:destination="@id/searchFragment"/>
+        <!-- Аргумент: передаём ID выбранного фильма из SearchScreen -->
+        <argument android:name="imdbId"
+            app:argType="string"
+            android:defaultValue=""/>
+    </fragment>
+
+    <fragment android:id="@+id/searchFragment"
+        android:name=".ui.SearchFragment">
+        <argument android:name="query" app:argType="string"/>
+        <argument android:name="year" app:argType="string" android:defaultValue=""/>
+    </fragment>
+</navigation>
