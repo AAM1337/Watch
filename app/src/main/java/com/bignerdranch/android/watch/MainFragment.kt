@@ -1,0 +1,68 @@
+package com.bignerdranch.android.watch
+
+import DataBase.AppDatabase
+import DataBase.MovieRepository
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.navigation.fragment.findNavController
+import com.bignerdranch.android.watch.databinding.FragmentMainBinding
+
+class MainFragment : Fragment() {
+
+    private val viewModel: MovieViewModel by activityViewModels {
+        val db = AppDatabase.Companion.getDatabase(requireContext())
+        MovieViewModel.Factory(MovieRepository(db.movieDao()))
+    }
+    private var _binding: FragmentMainBinding? = null
+    private val binding get() = _binding!!
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                              savedInstanceState: Bundle?): View {
+        _binding = FragmentMainBinding.inflate(inflater, container, false)
+        setHasOptionsMenu(true)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        val adapter = MovieAdapter { movie, checked ->
+            movie.isChecked = checked
+        }
+
+        binding.recyclerView.adapter = adapter
+
+        viewModel.movies.observe(viewLifecycleOwner) { movies ->
+            adapter.submitList(movies)
+            val isEmpty = movies.isEmpty()
+            binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+            binding.recyclerView.visibility = if (isEmpty) View.GONE else View.VISIBLE
+        }
+        binding.fabAdd.setOnClickListener {
+            findNavController().navigate(R.id.action_main_to_add)
+        }
+    }
+    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+        inflater.inflate(R.menu.menu_main, menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_delete -> {
+                viewModel.deleteChecked()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}

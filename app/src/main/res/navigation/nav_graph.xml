@@ -5,24 +5,23 @@
     app:startDestination="@id/mainFragment">
 
     <fragment android:id="@+id/mainFragment"
-        android:name=".ui.MainFragment">
-        <action android:id="@+id/action_main_to_add"
+        android:name="com.bignerdranch.android.watch.MainFragment">
+    <action android:id="@+id/action_main_to_add"
             app:destination="@id/addFragment"/>
     </fragment>
 
     <fragment android:id="@+id/addFragment"
-        android:name=".ui.AddFragment">
+        android:name="com.bignerdranch.android.watch.AddFragment">
         <action android:id="@+id/action_add_to_search"
             app:destination="@id/searchFragment"/>
-        <!-- Аргумент: передаём ID выбранного фильма из SearchScreen -->
         <argument android:name="imdbId"
             app:argType="string"
             android:defaultValue=""/>
     </fragment>
 
     <fragment android:id="@+id/searchFragment"
-        android:name=".ui.SearchFragment">
-        <argument android:name="query" app:argType="string"/>
+        android:name="com.bignerdranch.android.watch.SearchFragment">
+    <argument android:name="query" app:argType="string"/>
         <argument android:name="year" app:argType="string" android:defaultValue=""/>
     </fragment>
 </navigation>
