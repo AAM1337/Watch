@@ -35,16 +35,35 @@ class AddFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        val imdbId = arguments?.getString("imdbId") ?: ""
+        binding.btnAddMovie.isEnabled = viewModel.selectedMovie.value != null
+
+        val savedStateHandle = findNavController().currentBackStackEntry?.savedStateHandle
+        savedStateHandle?.getLiveData<String>("selected_imdb_id")
+            ?.observe(viewLifecycleOwner) { imdbId ->
+                if (imdbId.isNullOrEmpty()) return@observe
+                viewModel.selectMovie(imdbId)
+                savedStateHandle.remove<String>("selected_imdb_id")
+            }
+
+        val imdbId = arguments?.getString("imdbId").orEmpty()
         if (imdbId.isNotEmpty()) {
             viewModel.selectMovie(imdbId)
         }
 
         viewModel.selectedMovie.observe(viewLifecycleOwner) { detail ->
-            detail ?: return@observe
+            binding.btnAddMovie.isEnabled = detail != null
+            if (detail == null) {
+                binding.etTitle.text?.clear()
+                binding.etYear.text?.clear()
+                binding.imgPoster.setImageDrawable(null)
+                return@observe
+            }
             binding.etTitle.setText(detail.Title)
             binding.etYear.setText(detail.Year)
-            Glide.with(this).load(detail.Poster).into(binding.imgPoster)
+            Glide.with(this)
+                .load(detail.Poster)
+                .placeholder(R.drawable.ic_empty_frame)
+                .into(binding.imgPoster)
         }
 
         binding.btnSearch.setOnClickListener {
@@ -71,6 +90,8 @@ class AddFragment : Fragment() {
                 genre = detail.Genre
             )
             viewModel.addMovie(movie)
+            viewModel.clearSelectedMovie()
+            savedStateHandle?.remove<String>("selected_imdb_id")
             findNavController().popBackStack(R.id.mainFragment, false)
         }
     }

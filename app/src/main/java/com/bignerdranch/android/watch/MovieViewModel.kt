@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 class MovieViewModel(private val repo: MovieRepository) : ViewModel() {
 
     val movies = repo.allMovies.asLiveData()
+    private val checkedMovieIds = linkedSetOf<String>()
 
     private val _searchResults = MutableLiveData<List<SearchItem>?>()
     val searchResults: LiveData<List<SearchItem>?> = _searchResults
@@ -21,12 +22,21 @@ class MovieViewModel(private val repo: MovieRepository) : ViewModel() {
         repo.addMovie(movie)
     }
 
+    fun setMovieChecked(imdbId: String, checked: Boolean) {
+        if (checked) {
+            checkedMovieIds += imdbId
+        } else {
+            checkedMovieIds -= imdbId
+        }
+    }
+
+    fun isMovieChecked(imdbId: String): Boolean = imdbId in checkedMovieIds
+
     fun deleteChecked() = viewModelScope.launch {
-        val ids = movies.value
-            ?.filter { it.isChecked }
-            ?.map { it.imdbID }
-            ?: return@launch
+        val ids = checkedMovieIds.toList()
+        if (ids.isEmpty()) return@launch
         repo.deleteChecked(ids)
+        checkedMovieIds.removeAll(ids.toSet())
     }
 
     fun searchMovies(query: String, year: String?) = viewModelScope.launch {
@@ -35,6 +45,10 @@ class MovieViewModel(private val repo: MovieRepository) : ViewModel() {
 
     fun selectMovie(imdbId: String) = viewModelScope.launch {
         _selectedMovie.value = repo.getMovieDetail(imdbId)
+    }
+
+    fun clearSelectedMovie() {
+        _selectedMovie.value = null
     }
 
     class Factory(private val repo: MovieRepository) : ViewModelProvider.Factory {

@@ -39,20 +39,23 @@ class SearchFragment : Fragment() {
         viewModel.searchMovies(query, year)
 
         val adapter = SearchAdapter { searchItem ->
-            val args = Bundle().apply {
-                putString("imdbId", searchItem.imdbID)
-            }
-            findNavController().navigate(R.id.addFragment, args)
+            findNavController().previousBackStackEntry
+                ?.savedStateHandle
+                ?.set("selected_imdb_id", searchItem.imdbID)
+            findNavController().popBackStack()
         }
 
         binding.recyclerView.adapter = adapter
 
         viewModel.searchResults.observe(viewLifecycleOwner) { results ->
-            if (results == null) {
+            if (results.isNullOrEmpty()) {
+                adapter.submitList(emptyList())
                 binding.tvError.visibility = View.VISIBLE
                 binding.tvError.text = "Ничего не найдено"
+                binding.recyclerView.visibility = View.GONE
             } else {
                 binding.tvError.visibility = View.GONE
+                binding.recyclerView.visibility = View.VISIBLE
                 adapter.submitList(results)
             }
         }

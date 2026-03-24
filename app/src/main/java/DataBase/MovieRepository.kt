@@ -1,5 +1,9 @@
 package DataBase
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+
 class MovieRepository(private val dao: MovieDao) {
 
     val allMovies = dao.getAllMovies()
@@ -8,10 +12,21 @@ class MovieRepository(private val dao: MovieDao) {
 
     suspend fun deleteChecked(ids: List<String>) = dao.deleteByIds(ids)
 
-    suspend fun searchOnline(query: String, year: String?): List<SearchItem>? {
-        return try {
+    suspend fun searchOnline(query: String, year: String?): List<SearchItem>? = coroutineScope {
+        try {
             val response = RetrofitInstance.api.searchMovies(query, year)
-            if (response.Response == "True") response.Search else null
+            if (response.Response != "True") {
+                null
+            } else {
+                response.Search
+                    ?.map { item ->
+                        async {
+                            val detail = getMovieDetail(item.imdbID)
+                            item.copy(Genre = detail?.Genre.orEmpty())
+                        }
+                    }
+                    ?.awaitAll()
+            }
         } catch (e: Exception) {
             null
         }

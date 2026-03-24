@@ -32,13 +32,17 @@ class MainFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val adapter = MovieAdapter { movie, checked ->
-            movie.isChecked = checked
+            viewModel.setMovieChecked(movie.imdbID, checked)
         }
 
         binding.recyclerView.adapter = adapter
 
         viewModel.movies.observe(viewLifecycleOwner) { movies ->
-            adapter.submitList(movies)
+            adapter.submitList(
+                movies.map { movie ->
+                    movie.copy(isChecked = viewModel.isMovieChecked(movie.imdbID))
+                }
+            )
             val isEmpty = movies.isEmpty()
             binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
             binding.recyclerView.visibility = if (isEmpty) View.GONE else View.VISIBLE

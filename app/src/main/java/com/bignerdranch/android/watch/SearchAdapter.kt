@@ -19,10 +19,11 @@ class SearchAdapter(
         fun bind(item: SearchItem) {
             binding.tvTitle.text = item.Title
             binding.tvYear.text = item.Year
-            binding.tvGenre.text = item.Type
+            binding.tvGenre.text = item.Genre.ifBlank { "Жанр неизвестен" }
 
             Glide.with(binding.imgPoster.context)
                 .load(item.Poster)
+                .placeholder(R.drawable.ic_empty_frame)
                 .into(binding.imgPoster)
 
             binding.root.setOnClickListener { onClick(item) }

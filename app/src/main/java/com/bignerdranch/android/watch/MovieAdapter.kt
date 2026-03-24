@@ -20,6 +20,7 @@ class MovieAdapter(
         fun bind(movie: Movie) {
             binding.tvTitle.text = movie.title
             binding.tvYear.text = movie.year
+            binding.checkBox.setOnCheckedChangeListener(null)
             binding.checkBox.isChecked = movie.isChecked
 
             Glide.with(binding.imgPoster)

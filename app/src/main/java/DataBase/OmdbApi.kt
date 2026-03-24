@@ -13,7 +13,8 @@ data class SearchItem(
     val Title: String,
     val Year: String,
     val Poster: String,
-    val Type: String
+    val Type: String,
+    val Genre: String = ""
 )
 
 data class MovieDetail(
