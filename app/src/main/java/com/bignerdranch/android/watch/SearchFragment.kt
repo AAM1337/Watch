@@ -37,30 +37,40 @@ class SearchFragment : Fragment() {
 
         val query = arguments?.getString("query") ?: ""
         val year = arguments?.getString("year")
-        viewModel.searchMovies(query, year)
+        viewModel.handleIntent(SearchIntent.Initialize(query, year))
 
         val adapter = SearchAdapter { searchItem ->
-            findNavController().previousBackStackEntry
-                ?.savedStateHandle
-                ?.set("selected_imdb_id", searchItem.imdbID)
-            findNavController().popBackStack()
+            viewModel.handleIntent(SearchIntent.MovieClicked(searchItem.imdbID))
         }
 
         binding.recyclerView.adapter = adapter
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
-                    binding.progressBar.visibility = if (state.isLoading) View.VISIBLE else View.GONE
-                    adapter.submitList(state.results)
+                launch {
+                    viewModel.state.collect { state ->
+                        binding.progressBar.visibility = if (state.loading) View.VISIBLE else View.GONE
+                        adapter.submitList(state.results)
 
-                    if (state.errorMessage != null) {
-                        binding.tvError.visibility = View.VISIBLE
-                        binding.tvError.text = state.errorMessage
-                        binding.recyclerView.visibility = View.GONE
-                    } else {
-                        binding.tvError.visibility = View.GONE
-                        binding.recyclerView.visibility = View.VISIBLE
+                        if (state.error != null) {
+                            binding.tvError.visibility = View.VISIBLE
+                            binding.tvError.text = state.error
+                            binding.recyclerView.visibility = View.GONE
+                        } else {
+                            binding.tvError.visibility = View.GONE
+                            binding.recyclerView.visibility = View.VISIBLE
+                        }
+                    }
+                }
+
+                launch {
+                    viewModel.effect.collect { effect ->
+                        if (effect is SearchEffect.ReturnSelectedMovie) {
+                            findNavController().previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("selected_imdb_id", effect.imdbId)
+                            findNavController().popBackStack()
+                        }
                     }
                 }
             }

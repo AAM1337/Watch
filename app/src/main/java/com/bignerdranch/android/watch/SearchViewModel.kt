@@ -5,46 +5,78 @@ import DataBase.SearchItem
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class SearchScreenState(
+sealed interface SearchIntent {
+    data class Initialize(val query: String, val year: String?) : SearchIntent
+    data class MovieClicked(val imdbId: String) : SearchIntent
+}
+
+data class SearchState(
+    val loading: Boolean = false,
+    val query: String = "",
+    val year: String = "",
     val results: List<SearchItem> = emptyList(),
-    val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val selectedMovieId: String? = null,
+    val error: String? = null
 )
+
+sealed interface SearchEffect {
+    data class ReturnSelectedMovie(val imdbId: String) : SearchEffect
+}
 
 class SearchViewModel(private val repository: MovieRepository) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SearchScreenState())
-    val uiState: StateFlow<SearchScreenState> = _uiState.asStateFlow()
+    private val _state = MutableStateFlow(SearchState())
+    val state: StateFlow<SearchState> = _state.asStateFlow()
 
-    fun searchMovies(query: String, year: String?) {
+    private val _effect = MutableSharedFlow<SearchEffect>()
+    val effect = _effect.asSharedFlow()
+
+    fun handleIntent(intent: SearchIntent) {
+        when (intent) {
+            is SearchIntent.Initialize -> searchMovies(intent.query, intent.year)
+            is SearchIntent.MovieClicked -> {
+                _state.update { state -> state.copy(selectedMovieId = intent.imdbId) }
+                viewModelScope.launch {
+                    _effect.emit(SearchEffect.ReturnSelectedMovie(intent.imdbId))
+                }
+            }
+        }
+    }
+
+    private fun searchMovies(query: String, year: String?) {
         viewModelScope.launch {
-            _uiState.update { state ->
+            _state.update { state ->
                 state.copy(
-                    isLoading = true,
-                    errorMessage = null,
-                    results = emptyList()
+                    loading = true,
+                    query = query,
+                    year = year.orEmpty(),
+                    results = emptyList(),
+                    selectedMovieId = null,
+                    error = null
                 )
             }
 
             val results = repository.searchOnline(query, year?.takeIf { it.isNotBlank() })
-            _uiState.update { state ->
+            _state.update { state ->
                 if (results.isNullOrEmpty()) {
                     state.copy(
-                        isLoading = false,
-                        errorMessage = "Ничего не найдено",
-                        results = emptyList()
+                        loading = false,
+                        results = emptyList(),
+                        error = "Ничего не найдено"
                     )
                 } else {
                     state.copy(
-                        isLoading = false,
-                        errorMessage = null,
-                        results = results
+                        loading = false,
+                        results = results,
+                        error = null
                     )
                 }
             }

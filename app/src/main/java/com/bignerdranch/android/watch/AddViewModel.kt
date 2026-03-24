@@ -6,73 +6,82 @@ import DataBase.MovieRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class SearchRequest(
-    val query: String,
-    val year: String
-)
+sealed interface AddIntent {
+    data class Initialize(val imdbId: String?) : AddIntent
+    data class TitleChanged(val title: String) : AddIntent
+    data class YearChanged(val year: String) : AddIntent
+    data object SearchClicked : AddIntent
+    data object AddMovieClicked : AddIntent
+}
 
-data class AddScreenState(
+data class AddState(
+    val loading: Boolean = false,
     val title: String = "",
     val year: String = "",
     val selectedMovie: MovieDetail? = null,
-    val isLoading: Boolean = false,
-    val titleError: String? = null,
-    val errorMessage: String? = null,
-    val pendingSearch: SearchRequest? = null,
-    val shouldNavigateBack: Boolean = false
+    val error: String? = null,
+    val titleError: String? = null
 ) {
     val canAddMovie: Boolean
-        get() = selectedMovie != null && !isLoading
+        get() = selectedMovie != null && !loading
+}
+
+sealed interface AddEffect {
+    data class NavigateToSearch(val query: String, val year: String) : AddEffect
+    data object NavigateBackToMain : AddEffect
+    data class ShowMessage(val message: String) : AddEffect
 }
 
 class AddViewModel(private val repository: MovieRepository) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AddScreenState())
-    val uiState: StateFlow<AddScreenState> = _uiState.asStateFlow()
+    private val _state = MutableStateFlow(AddState())
+    val state: StateFlow<AddState> = _state.asStateFlow()
 
-    fun onTitleChanged(title: String) {
-        _uiState.update { state ->
-            state.copy(
-                title = title,
-                titleError = null
-            )
+    private val _effect = MutableSharedFlow<AddEffect>()
+    val effect = _effect.asSharedFlow()
+
+    fun handleIntent(intent: AddIntent) {
+        when (intent) {
+            is AddIntent.Initialize -> loadMovie(intent.imdbId.orEmpty())
+            is AddIntent.TitleChanged -> {
+                _state.update { state ->
+                    state.copy(title = intent.title, titleError = null, error = null)
+                }
+            }
+
+            is AddIntent.YearChanged -> {
+                _state.update { state -> state.copy(year = intent.year) }
+            }
+
+            AddIntent.SearchClicked -> onSearchClicked()
+            AddIntent.AddMovieClicked -> addMovie()
         }
     }
 
-    fun onYearChanged(year: String) {
-        _uiState.update { state -> state.copy(year = year) }
-    }
-
-    fun loadMovie(imdbId: String) {
+    private fun loadMovie(imdbId: String) {
         if (imdbId.isBlank()) return
         viewModelScope.launch {
-            _uiState.update { state ->
-                state.copy(
-                    isLoading = true,
-                    errorMessage = null
-                )
-            }
-
+            _state.update { state -> state.copy(loading = true, error = null) }
             val detail = repository.getMovieDetail(imdbId)
-            _uiState.update { state ->
-                if (detail == null) {
+            if (detail == null) {
+                _state.update { state -> state.copy(loading = false, error = "Не удалось загрузить фильм") }
+                _effect.emit(AddEffect.ShowMessage("Не удалось загрузить фильм"))
+            } else {
+                _state.update { state ->
                     state.copy(
-                        isLoading = false,
-                        errorMessage = "Не удалось загрузить фильм"
-                    )
-                } else {
-                    state.copy(
+                        loading = false,
                         title = detail.Title,
                         year = detail.Year,
                         selectedMovie = detail,
-                        isLoading = false,
-                        errorMessage = null,
+                        error = null,
                         titleError = null
                     )
                 }
@@ -80,34 +89,31 @@ class AddViewModel(private val repository: MovieRepository) : ViewModel() {
         }
     }
 
-    fun onSearchClicked() {
-        val currentState = _uiState.value
+    private fun onSearchClicked() {
+        val currentState = _state.value
         val query = currentState.title.trim()
         if (query.isBlank()) {
-            _uiState.update { state -> state.copy(titleError = "Введите название") }
+            _state.update { state -> state.copy(titleError = "Введите название") }
             return
         }
 
-        _uiState.update { state ->
+        val year = currentState.year.trim()
+        _state.update { state ->
             state.copy(
                 title = query,
-                year = state.year.trim(),
+                year = year,
                 titleError = null,
-                pendingSearch = SearchRequest(query = query, year = state.year.trim())
+                error = null
             )
+        }
+
+        viewModelScope.launch {
+            _effect.emit(AddEffect.NavigateToSearch(query, year))
         }
     }
 
-    fun onSearchNavigated() {
-        _uiState.update { state -> state.copy(pendingSearch = null) }
-    }
-
-    fun onErrorMessageShown() {
-        _uiState.update { state -> state.copy(errorMessage = null) }
-    }
-
-    fun addMovie() {
-        val detail = _uiState.value.selectedMovie ?: return
+    private fun addMovie() {
+        val detail = _state.value.selectedMovie ?: return
         viewModelScope.launch {
             repository.addMovie(
                 Movie(
@@ -118,12 +124,9 @@ class AddViewModel(private val repository: MovieRepository) : ViewModel() {
                     genre = detail.Genre
                 )
             )
-            _uiState.value = AddScreenState(shouldNavigateBack = true)
+            _state.value = AddState()
+            _effect.emit(AddEffect.NavigateBackToMain)
         }
-    }
-
-    fun onNavigationBackHandled() {
-        _uiState.update { state -> state.copy(shouldNavigateBack = false) }
     }
 
     class Factory(private val repository: MovieRepository) : ViewModelProvider.Factory {

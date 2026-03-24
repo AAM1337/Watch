@@ -33,23 +33,33 @@ class MainFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val adapter = MovieAdapter { movie, checked ->
-            viewModel.onMovieCheckedChanged(movie.imdbID, checked)
+            viewModel.handleIntent(MainIntent.ToggleMovieSelection(movie.imdbID, checked))
         }
 
         binding.recyclerView.adapter = adapter
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { state ->
-                    adapter.submitList(state.movies)
-                    binding.emptyView.visibility = if (state.isEmpty) View.VISIBLE else View.GONE
-                    binding.recyclerView.visibility = if (state.isEmpty) View.GONE else View.VISIBLE
+                launch {
+                    viewModel.state.collect { state ->
+                        adapter.submitList(state.movies)
+                        binding.emptyView.visibility = if (state.isEmpty) View.VISIBLE else View.GONE
+                        binding.recyclerView.visibility = if (state.isEmpty) View.GONE else View.VISIBLE
+                    }
+                }
+
+                launch {
+                    viewModel.effect.collect { effect ->
+                        if (effect is MainEffect.NavigateToAdd) {
+                            findNavController().navigate(R.id.action_main_to_add)
+                        }
+                    }
                 }
             }
         }
 
         binding.fabAdd.setOnClickListener {
-            findNavController().navigate(R.id.action_main_to_add)
+            viewModel.handleIntent(MainIntent.AddMovieClicked)
         }
     }
 
@@ -60,7 +70,7 @@ class MainFragment : Fragment() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_delete -> {
-                viewModel.deleteCheckedMovies()
+                viewModel.handleIntent(MainIntent.DeleteSelectedMovies)
                 true
             }
             else -> super.onOptionsItemSelected(item)
