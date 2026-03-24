@@ -4,21 +4,22 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
-import DataBase.AppDatabase
-import DataBase.Movie
-import DataBase.MovieRepository
 import com.bignerdranch.android.watch.databinding.FragmentAddBinding
-
 import com.bumptech.glide.Glide
+import kotlinx.coroutines.launch
 
 class AddFragment : Fragment() {
 
-    private val viewModel: MovieViewModel by activityViewModels {
-        val db = AppDatabase.getDatabase(requireContext())
-        MovieViewModel.Factory(MovieRepository(db.movieDao()))
+    private val viewModel: AddViewModel by viewModels {
+        (requireActivity().application as WatchApplication).addViewModelFactory()
     }
 
     private var _binding: FragmentAddBinding? = null
@@ -35,64 +36,92 @@ class AddFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.btnAddMovie.isEnabled = viewModel.selectedMovie.value != null
-
         val savedStateHandle = findNavController().currentBackStackEntry?.savedStateHandle
         savedStateHandle?.getLiveData<String>("selected_imdb_id")
             ?.observe(viewLifecycleOwner) { imdbId ->
                 if (imdbId.isNullOrEmpty()) return@observe
-                viewModel.selectMovie(imdbId)
+                viewModel.loadMovie(imdbId)
                 savedStateHandle.remove<String>("selected_imdb_id")
             }
 
         val imdbId = arguments?.getString("imdbId").orEmpty()
         if (imdbId.isNotEmpty()) {
-            viewModel.selectMovie(imdbId)
+            viewModel.loadMovie(imdbId)
         }
 
-        viewModel.selectedMovie.observe(viewLifecycleOwner) { detail ->
-            binding.btnAddMovie.isEnabled = detail != null
-            if (detail == null) {
-                binding.etTitle.text?.clear()
-                binding.etYear.text?.clear()
-                binding.imgPoster.setImageDrawable(null)
-                return@observe
+        binding.etTitle.doAfterTextChanged { editable ->
+            val text = editable?.toString().orEmpty()
+            if (text != viewModel.uiState.value.title) {
+                viewModel.onTitleChanged(text)
             }
-            binding.etTitle.setText(detail.Title)
-            binding.etYear.setText(detail.Year)
+        }
+
+        binding.etYear.doAfterTextChanged { editable ->
+            val text = editable?.toString().orEmpty()
+            if (text != viewModel.uiState.value.year) {
+                viewModel.onYearChanged(text)
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    render(state)
+
+                    state.pendingSearch?.let { request ->
+                        val args = Bundle().apply {
+                            putString("query", request.query)
+                            putString("year", request.year)
+                        }
+                        viewModel.onSearchNavigated()
+                        findNavController().navigate(R.id.action_add_to_search, args)
+                    }
+
+                    if (state.shouldNavigateBack) {
+                        viewModel.onNavigationBackHandled()
+                        savedStateHandle?.remove<String>("selected_imdb_id")
+                        findNavController().popBackStack(R.id.mainFragment, false)
+                    }
+                }
+            }
+        }
+
+        binding.btnSearch.setOnClickListener {
+            viewModel.onSearchClicked()
+        }
+
+        binding.btnAddMovie.setOnClickListener {
+            viewModel.addMovie()
+        }
+    }
+
+    private fun render(state: AddScreenState) {
+        if (binding.etTitle.text?.toString() != state.title) {
+            binding.etTitle.setText(state.title)
+            binding.etTitle.setSelection(binding.etTitle.text?.length ?: 0)
+        }
+        if (binding.etYear.text?.toString() != state.year) {
+            binding.etYear.setText(state.year)
+            binding.etYear.setSelection(binding.etYear.text?.length ?: 0)
+        }
+
+        binding.etTitle.error = state.titleError
+        binding.progressBar.visibility = if (state.isLoading) View.VISIBLE else View.GONE
+        binding.btnAddMovie.isEnabled = state.canAddMovie
+
+        val selectedMovie = state.selectedMovie
+        if (selectedMovie == null) {
+            binding.imgPoster.setImageDrawable(null)
+        } else {
             Glide.with(this)
-                .load(detail.Poster)
+                .load(selectedMovie.Poster)
                 .placeholder(R.drawable.ic_empty_frame)
                 .into(binding.imgPoster)
         }
 
-        binding.btnSearch.setOnClickListener {
-            val query = binding.etTitle.text.toString()
-            if (query.isBlank()) {
-                binding.etTitle.error = "Введите название"
-                return@setOnClickListener
-            }
-            val year = binding.etYear.text.toString()
-            val args = Bundle().apply {
-                putString("query", query)
-                putString("year", year)
-            }
-            findNavController().navigate(R.id.action_add_to_search, args)
-        }
-
-        binding.btnAddMovie.setOnClickListener {
-            val detail = viewModel.selectedMovie.value ?: return@setOnClickListener
-            val movie = Movie(
-                imdbID = detail.imdbID,
-                title = detail.Title,
-                year = detail.Year,
-                posterUrl = detail.Poster,
-                genre = detail.Genre
-            )
-            viewModel.addMovie(movie)
-            viewModel.clearSelectedMovie()
-            savedStateHandle?.remove<String>("selected_imdb_id")
-            findNavController().popBackStack(R.id.mainFragment, false)
+        state.errorMessage?.let { message ->
+            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            viewModel.onErrorMessageShown()
         }
     }
 

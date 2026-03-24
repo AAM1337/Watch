@@ -1,7 +1,5 @@
 package com.bignerdranch.android.watch
 
-import DataBase.AppDatabase
-import DataBase.MovieRepository
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -10,15 +8,18 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.bignerdranch.android.watch.databinding.FragmentMainBinding
+import kotlinx.coroutines.launch
 
 class MainFragment : Fragment() {
 
-    private val viewModel: MovieViewModel by activityViewModels {
-        val db = AppDatabase.Companion.getDatabase(requireContext())
-        MovieViewModel.Factory(MovieRepository(db.movieDao()))
+    private val viewModel: MainViewModel by viewModels {
+        (requireActivity().application as WatchApplication).mainViewModelFactory()
     }
     private var _binding: FragmentMainBinding? = null
     private val binding get() = _binding!!
@@ -32,25 +33,26 @@ class MainFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val adapter = MovieAdapter { movie, checked ->
-            viewModel.setMovieChecked(movie.imdbID, checked)
+            viewModel.onMovieCheckedChanged(movie.imdbID, checked)
         }
 
         binding.recyclerView.adapter = adapter
 
-        viewModel.movies.observe(viewLifecycleOwner) { movies ->
-            adapter.submitList(
-                movies.map { movie ->
-                    movie.copy(isChecked = viewModel.isMovieChecked(movie.imdbID))
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    adapter.submitList(state.movies)
+                    binding.emptyView.visibility = if (state.isEmpty) View.VISIBLE else View.GONE
+                    binding.recyclerView.visibility = if (state.isEmpty) View.GONE else View.VISIBLE
                 }
-            )
-            val isEmpty = movies.isEmpty()
-            binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
-            binding.recyclerView.visibility = if (isEmpty) View.GONE else View.VISIBLE
+            }
         }
+
         binding.fabAdd.setOnClickListener {
             findNavController().navigate(R.id.action_main_to_add)
         }
     }
+
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.menu_main, menu)
     }
@@ -58,7 +60,7 @@ class MainFragment : Fragment() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_delete -> {
-                viewModel.deleteChecked()
+                viewModel.deleteCheckedMovies()
                 true
             }
             else -> super.onOptionsItemSelected(item)

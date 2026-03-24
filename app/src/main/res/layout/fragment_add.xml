@@ -22,6 +22,14 @@
             android:hint="Год выхода (необязательно)"
             android:inputType="number"/>
 
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
         <ImageView
             android:id="@+id/imgPoster"
             android:layout_width="150dp"
