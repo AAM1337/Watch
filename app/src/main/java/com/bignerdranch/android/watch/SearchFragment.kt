@@ -5,7 +5,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -16,9 +15,7 @@ import kotlinx.coroutines.launch
 
 class SearchFragment : Fragment() {
 
-    private val viewModel: SearchViewModel by viewModels {
-        (requireActivity().application as WatchApplication).searchViewModelFactory()
-    }
+    private lateinit var controller: SearchController
 
     private var _binding: FragmentSearchBinding? = null
     private val binding get() = _binding!!
@@ -35,12 +32,17 @@ class SearchFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        controller = SearchController(
+            repository = (requireActivity().application as WatchApplication).provideRepository(),
+            scope = viewLifecycleOwner.lifecycleScope
+        )
+
         val query = arguments?.getString("query") ?: ""
         val year = arguments?.getString("year")
-        viewModel.handleIntent(SearchIntent.Initialize(query, year))
+        controller.initialize(query, year)
 
         val adapter = SearchAdapter { searchItem ->
-            viewModel.handleIntent(SearchIntent.MovieClicked(searchItem.imdbID))
+            controller.onMovieClicked(searchItem.imdbID)
         }
 
         binding.recyclerView.adapter = adapter
@@ -48,7 +50,7 @@ class SearchFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    viewModel.state.collect { state ->
+                    controller.state.collect { state ->
                         binding.progressBar.visibility = if (state.loading) View.VISIBLE else View.GONE
                         adapter.submitList(state.results)
 
@@ -64,11 +66,11 @@ class SearchFragment : Fragment() {
                 }
 
                 launch {
-                    viewModel.effect.collect { effect ->
-                        if (effect is SearchEffect.ReturnSelectedMovie) {
+                    controller.events.collect { event ->
+                        if (event is SearchUiEvent.ReturnSelectedMovie) {
                             findNavController().previousBackStackEntry
                                 ?.savedStateHandle
-                                ?.set("selected_imdb_id", effect.imdbId)
+                                ?.set("selected_imdb_id", event.imdbId)
                             findNavController().popBackStack()
                         }
                     }

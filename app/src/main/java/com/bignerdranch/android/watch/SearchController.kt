@@ -2,23 +2,17 @@ package com.bignerdranch.android.watch
 
 import DataBase.MovieRepository
 import DataBase.SearchItem
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-sealed interface SearchIntent {
-    data class Initialize(val query: String, val year: String?) : SearchIntent
-    data class MovieClicked(val imdbId: String) : SearchIntent
-}
-
-data class SearchState(
+data class SearchViewState(
     val loading: Boolean = false,
     val query: String = "",
     val year: String = "",
@@ -27,32 +21,23 @@ data class SearchState(
     val error: String? = null
 )
 
-sealed interface SearchEffect {
-    data class ReturnSelectedMovie(val imdbId: String) : SearchEffect
+sealed interface SearchUiEvent {
+    data class ReturnSelectedMovie(val imdbId: String) : SearchUiEvent
 }
 
-class SearchViewModel(private val repository: MovieRepository) : ViewModel() {
+class SearchController(
+    private val repository: MovieRepository,
+    private val scope: CoroutineScope
+) {
 
-    private val _state = MutableStateFlow(SearchState())
-    val state: StateFlow<SearchState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(SearchViewState())
+    val state: StateFlow<SearchViewState> = _state.asStateFlow()
 
-    private val _effect = MutableSharedFlow<SearchEffect>()
-    val effect = _effect.asSharedFlow()
+    private val _events = MutableSharedFlow<SearchUiEvent>()
+    val events: SharedFlow<SearchUiEvent> = _events.asSharedFlow()
 
-    fun handleIntent(intent: SearchIntent) {
-        when (intent) {
-            is SearchIntent.Initialize -> searchMovies(intent.query, intent.year)
-            is SearchIntent.MovieClicked -> {
-                _state.update { state -> state.copy(selectedMovieId = intent.imdbId) }
-                viewModelScope.launch {
-                    _effect.emit(SearchEffect.ReturnSelectedMovie(intent.imdbId))
-                }
-            }
-        }
-    }
-
-    private fun searchMovies(query: String, year: String?) {
-        viewModelScope.launch {
+    fun initialize(query: String, year: String?) {
+        scope.launch {
             _state.update { state ->
                 state.copy(
                     loading = true,
@@ -83,10 +68,10 @@ class SearchViewModel(private val repository: MovieRepository) : ViewModel() {
         }
     }
 
-    class Factory(private val repository: MovieRepository) : ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            @Suppress("UNCHECKED_CAST")
-            return SearchViewModel(repository) as T
+    fun onMovieClicked(imdbId: String) {
+        _state.update { state -> state.copy(selectedMovieId = imdbId) }
+        scope.launch {
+            _events.emit(SearchUiEvent.ReturnSelectedMovie(imdbId))
         }
     }
 }

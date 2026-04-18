@@ -7,7 +7,6 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -18,9 +17,7 @@ import kotlinx.coroutines.launch
 
 class AddFragment : Fragment() {
 
-    private val viewModel: AddViewModel by viewModels {
-        (requireActivity().application as WatchApplication).addViewModelFactory()
-    }
+    private lateinit var controller: AddController
 
     private var _binding: FragmentAddBinding? = null
     private val binding get() = _binding!!
@@ -36,59 +33,64 @@ class AddFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        controller = AddController(
+            repository = (requireActivity().application as WatchApplication).provideRepository(),
+            scope = viewLifecycleOwner.lifecycleScope
+        )
+
         val savedStateHandle = findNavController().currentBackStackEntry?.savedStateHandle
         savedStateHandle?.getLiveData<String>("selected_imdb_id")
             ?.observe(viewLifecycleOwner) { imdbId ->
                 if (imdbId.isNullOrEmpty()) return@observe
-                viewModel.handleIntent(AddIntent.Initialize(imdbId))
+                controller.initialize(imdbId)
                 savedStateHandle.remove<String>("selected_imdb_id")
             }
 
         val imdbId = arguments?.getString("imdbId").orEmpty()
         if (imdbId.isNotEmpty()) {
-            viewModel.handleIntent(AddIntent.Initialize(imdbId))
+            controller.initialize(imdbId)
         }
 
         binding.etTitle.doAfterTextChanged { editable ->
             val text = editable?.toString().orEmpty()
-            if (text != viewModel.state.value.title) {
-                viewModel.handleIntent(AddIntent.TitleChanged(text))
+            if (text != controller.state.value.title) {
+                controller.onTitleChanged(text)
             }
         }
 
         binding.etYear.doAfterTextChanged { editable ->
             val text = editable?.toString().orEmpty()
-            if (text != viewModel.state.value.year) {
-                viewModel.handleIntent(AddIntent.YearChanged(text))
+            if (text != controller.state.value.year) {
+                controller.onYearChanged(text)
             }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    viewModel.state.collect { state ->
+                    controller.state.collect { state ->
                         render(state)
                     }
                 }
 
                 launch {
-                    viewModel.effect.collect { effect ->
-                        when (effect) {
-                            is AddEffect.NavigateToSearch -> {
+                    controller.events.collect { event ->
+                        when (event) {
+                            is AddUiEvent.NavigateToSearch -> {
                                 val args = Bundle().apply {
-                                    putString("query", effect.query)
-                                    putString("year", effect.year)
+                                    putString("query", event.query)
+                                    putString("year", event.year)
                                 }
                                 findNavController().navigate(R.id.action_add_to_search, args)
                             }
 
-                            AddEffect.NavigateBackToMain -> {
+                            AddUiEvent.NavigateBackToMain -> {
                                 savedStateHandle?.remove<String>("selected_imdb_id")
                                 findNavController().popBackStack(R.id.mainFragment, false)
                             }
 
-                            is AddEffect.ShowMessage -> {
-                                Toast.makeText(requireContext(), effect.message, Toast.LENGTH_SHORT).show()
+                            is AddUiEvent.ShowMessage -> {
+                                Toast.makeText(requireContext(), event.message, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -97,15 +99,15 @@ class AddFragment : Fragment() {
         }
 
         binding.btnSearch.setOnClickListener {
-            viewModel.handleIntent(AddIntent.SearchClicked)
+            controller.onSearchClicked()
         }
 
         binding.btnAddMovie.setOnClickListener {
-            viewModel.handleIntent(AddIntent.AddMovieClicked)
+            controller.onAddMovieClicked()
         }
     }
 
-    private fun render(state: AddState) {
+    private fun render(state: AddViewState) {
         if (binding.etTitle.text?.toString() != state.title) {
             binding.etTitle.setText(state.title)
             binding.etTitle.setSelection(binding.etTitle.text?.length ?: 0)

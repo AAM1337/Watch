@@ -8,7 +8,6 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -18,9 +17,7 @@ import kotlinx.coroutines.launch
 
 class MainFragment : Fragment() {
 
-    private val viewModel: MainViewModel by viewModels {
-        (requireActivity().application as WatchApplication).mainViewModelFactory()
-    }
+    private lateinit var controller: MainController
     private var _binding: FragmentMainBinding? = null
     private val binding get() = _binding!!
 
@@ -32,8 +29,13 @@ class MainFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        controller = MainController(
+            repository = (requireActivity().application as WatchApplication).provideRepository(),
+            scope = viewLifecycleOwner.lifecycleScope
+        )
+
         val adapter = MovieAdapter { movie, checked ->
-            viewModel.handleIntent(MainIntent.ToggleMovieSelection(movie.imdbID, checked))
+            controller.onMovieCheckedChanged(movie.imdbID, checked)
         }
 
         binding.recyclerView.adapter = adapter
@@ -41,7 +43,7 @@ class MainFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
-                    viewModel.state.collect { state ->
+                    controller.state.collect { state ->
                         adapter.submitList(state.movies)
                         binding.emptyView.visibility = if (state.isEmpty) View.VISIBLE else View.GONE
                         binding.recyclerView.visibility = if (state.isEmpty) View.GONE else View.VISIBLE
@@ -49,8 +51,8 @@ class MainFragment : Fragment() {
                 }
 
                 launch {
-                    viewModel.effect.collect { effect ->
-                        if (effect is MainEffect.NavigateToAdd) {
+                    controller.events.collect { event ->
+                        if (event is MainUiEvent.NavigateToAdd) {
                             findNavController().navigate(R.id.action_main_to_add)
                         }
                     }
@@ -59,7 +61,7 @@ class MainFragment : Fragment() {
         }
 
         binding.fabAdd.setOnClickListener {
-            viewModel.handleIntent(MainIntent.AddMovieClicked)
+            controller.onAddMovieClicked()
         }
     }
 
@@ -70,7 +72,7 @@ class MainFragment : Fragment() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_delete -> {
-                viewModel.handleIntent(MainIntent.DeleteSelectedMovies)
+                controller.onDeleteSelectedClicked()
                 true
             }
             else -> super.onOptionsItemSelected(item)
