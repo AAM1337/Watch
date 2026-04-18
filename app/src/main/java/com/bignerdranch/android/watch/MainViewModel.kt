@@ -1,7 +1,8 @@
 package com.bignerdranch.android.watch
 
-import DataBase.Movie
-import DataBase.MovieRepository
+import com.bignerdranch.android.watch.domain.model.SavedMovie
+import com.bignerdranch.android.watch.domain.usecase.DeleteCheckedMoviesUseCase
+import com.bignerdranch.android.watch.domain.usecase.GetSavedMoviesUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -24,7 +25,7 @@ sealed interface MainIntent {
 
 data class MainState(
     val loading: Boolean = true,
-    val movies: List<Movie> = emptyList(),
+    val movies: List<SavedMovie> = emptyList(),
     val error: String? = null,
     val selectedMovieIds: Set<String> = emptySet()
 ) {
@@ -36,18 +37,21 @@ sealed interface MainEffect {
     data object NavigateToAdd : MainEffect
 }
 
-class MainViewModel(private val repository: MovieRepository) : ViewModel() {
+class MainViewModel(
+    private val getSavedMoviesUseCase: GetSavedMoviesUseCase,
+    private val deleteCheckedMoviesUseCase: DeleteCheckedMoviesUseCase
+) : ViewModel() {
 
     private val selectedIds = MutableStateFlow<Set<String>>(emptySet())
     private val _effect = MutableSharedFlow<MainEffect>()
     val effect = _effect.asSharedFlow()
 
     val state: StateFlow<MainState> = combine(
-        repository.allMovies,
+        getSavedMoviesUseCase(),
         selectedIds
     ) { movies, checkedIds ->
         val updatedMovies = movies.map { movie ->
-            movie.copy(isChecked = movie.imdbID in checkedIds)
+            movie.copy(isChecked = movie.imdbId in checkedIds)
         }
         MainState(
             loading = false,
@@ -72,7 +76,7 @@ class MainViewModel(private val repository: MovieRepository) : ViewModel() {
                 viewModelScope.launch {
                     val idsToDelete = selectedIds.value.toList()
                     if (idsToDelete.isEmpty()) return@launch
-                    repository.deleteChecked(idsToDelete)
+                    deleteCheckedMoviesUseCase(idsToDelete)
                     selectedIds.update { ids -> ids - idsToDelete.toSet() }
                 }
             }
@@ -85,10 +89,13 @@ class MainViewModel(private val repository: MovieRepository) : ViewModel() {
         }
     }
 
-    class Factory(private val repository: MovieRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val getSavedMoviesUseCase: GetSavedMoviesUseCase,
+        private val deleteCheckedMoviesUseCase: DeleteCheckedMoviesUseCase
+    ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
-            return MainViewModel(repository) as T
+            return MainViewModel(getSavedMoviesUseCase, deleteCheckedMoviesUseCase) as T
         }
     }
 }

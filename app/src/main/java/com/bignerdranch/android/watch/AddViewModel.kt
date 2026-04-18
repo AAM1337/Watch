@@ -1,8 +1,9 @@
 package com.bignerdranch.android.watch
 
-import DataBase.Movie
-import DataBase.MovieDetail
-import DataBase.MovieRepository
+import com.bignerdranch.android.watch.domain.model.MovieDetails
+import com.bignerdranch.android.watch.domain.model.SavedMovie
+import com.bignerdranch.android.watch.domain.usecase.AddMovieUseCase
+import com.bignerdranch.android.watch.domain.usecase.GetMovieDetailsUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -26,7 +27,7 @@ data class AddState(
     val loading: Boolean = false,
     val title: String = "",
     val year: String = "",
-    val selectedMovie: MovieDetail? = null,
+    val selectedMovie: MovieDetails? = null,
     val error: String? = null,
     val titleError: String? = null
 ) {
@@ -40,7 +41,10 @@ sealed interface AddEffect {
     data class ShowMessage(val message: String) : AddEffect
 }
 
-class AddViewModel(private val repository: MovieRepository) : ViewModel() {
+class AddViewModel(
+    private val getMovieDetailsUseCase: GetMovieDetailsUseCase,
+    private val addMovieUseCase: AddMovieUseCase
+) : ViewModel() {
 
     private val _state = MutableStateFlow(AddState())
     val state: StateFlow<AddState> = _state.asStateFlow()
@@ -70,7 +74,7 @@ class AddViewModel(private val repository: MovieRepository) : ViewModel() {
         if (imdbId.isBlank()) return
         viewModelScope.launch {
             _state.update { state -> state.copy(loading = true, error = null) }
-            val detail = repository.getMovieDetail(imdbId)
+            val detail = getMovieDetailsUseCase(imdbId)
             if (detail == null) {
                 _state.update { state -> state.copy(loading = false, error = "Не удалось загрузить фильм") }
                 _effect.emit(AddEffect.ShowMessage("Не удалось загрузить фильм"))
@@ -78,8 +82,8 @@ class AddViewModel(private val repository: MovieRepository) : ViewModel() {
                 _state.update { state ->
                     state.copy(
                         loading = false,
-                        title = detail.Title,
-                        year = detail.Year,
+                        title = detail.title,
+                        year = detail.year,
                         selectedMovie = detail,
                         error = null,
                         titleError = null
@@ -115,13 +119,13 @@ class AddViewModel(private val repository: MovieRepository) : ViewModel() {
     private fun addMovie() {
         val detail = _state.value.selectedMovie ?: return
         viewModelScope.launch {
-            repository.addMovie(
-                Movie(
-                    imdbID = detail.imdbID,
-                    title = detail.Title,
-                    year = detail.Year,
-                    posterUrl = detail.Poster,
-                    genre = detail.Genre
+            addMovieUseCase(
+                SavedMovie(
+                    imdbId = detail.imdbId,
+                    title = detail.title,
+                    year = detail.year,
+                    posterUrl = detail.posterUrl,
+                    genre = detail.genre
                 )
             )
             _state.value = AddState()
@@ -129,10 +133,13 @@ class AddViewModel(private val repository: MovieRepository) : ViewModel() {
         }
     }
 
-    class Factory(private val repository: MovieRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val getMovieDetailsUseCase: GetMovieDetailsUseCase,
+        private val addMovieUseCase: AddMovieUseCase
+    ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
-            return AddViewModel(repository) as T
+            return AddViewModel(getMovieDetailsUseCase, addMovieUseCase) as T
         }
     }
 }

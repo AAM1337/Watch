@@ -40,7 +40,7 @@ class SearchFragment : Fragment() {
         viewModel.handleIntent(SearchIntent.Initialize(query, year))
 
         val adapter = SearchAdapter { searchItem ->
-            viewModel.handleIntent(SearchIntent.MovieClicked(searchItem.imdbID))
+            viewModel.handleIntent(SearchIntent.MovieClicked(searchItem.imdbId))
         }
 
         binding.recyclerView.adapter = adapter

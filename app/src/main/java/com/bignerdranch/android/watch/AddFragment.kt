@@ -124,7 +124,7 @@ class AddFragment : Fragment() {
             binding.imgPoster.setImageDrawable(null)
         } else {
             Glide.with(this)
-                .load(selectedMovie.Poster)
+                .load(selectedMovie.posterUrl)
                 .placeholder(R.drawable.ic_empty_frame)
                 .into(binding.imgPoster)
         }

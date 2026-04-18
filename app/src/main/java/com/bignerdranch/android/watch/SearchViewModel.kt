@@ -1,7 +1,7 @@
 package com.bignerdranch.android.watch
 
-import DataBase.MovieRepository
-import DataBase.SearchItem
+import com.bignerdranch.android.watch.domain.model.SearchMovie
+import com.bignerdranch.android.watch.domain.usecase.SearchMoviesUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -22,7 +22,7 @@ data class SearchState(
     val loading: Boolean = false,
     val query: String = "",
     val year: String = "",
-    val results: List<SearchItem> = emptyList(),
+    val results: List<SearchMovie> = emptyList(),
     val selectedMovieId: String? = null,
     val error: String? = null
 )
@@ -31,7 +31,7 @@ sealed interface SearchEffect {
     data class ReturnSelectedMovie(val imdbId: String) : SearchEffect
 }
 
-class SearchViewModel(private val repository: MovieRepository) : ViewModel() {
+class SearchViewModel(private val searchMoviesUseCase: SearchMoviesUseCase) : ViewModel() {
 
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
@@ -64,7 +64,7 @@ class SearchViewModel(private val repository: MovieRepository) : ViewModel() {
                 )
             }
 
-            val results = repository.searchOnline(query, year?.takeIf { it.isNotBlank() })
+            val results = searchMoviesUseCase(query, year?.takeIf { it.isNotBlank() })
             _state.update { state ->
                 if (results.isNullOrEmpty()) {
                     state.copy(
@@ -83,10 +83,10 @@ class SearchViewModel(private val repository: MovieRepository) : ViewModel() {
         }
     }
 
-    class Factory(private val repository: MovieRepository) : ViewModelProvider.Factory {
+    class Factory(private val searchMoviesUseCase: SearchMoviesUseCase) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             @Suppress("UNCHECKED_CAST")
-            return SearchViewModel(repository) as T
+            return SearchViewModel(searchMoviesUseCase) as T
         }
     }
 }

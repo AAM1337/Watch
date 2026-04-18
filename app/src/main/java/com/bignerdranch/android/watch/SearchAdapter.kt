@@ -5,24 +5,24 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import DataBase.SearchItem
+import com.bignerdranch.android.watch.domain.model.SearchMovie
 import com.bignerdranch.android.watch.databinding.ItemSearchBinding
 import com.bumptech.glide.Glide
 
 class SearchAdapter(
-    private val onClick: (SearchItem) -> Unit
-) : ListAdapter<SearchItem, SearchAdapter.ViewHolder>(DiffCallback()) {
+    private val onClick: (SearchMovie) -> Unit
+) : ListAdapter<SearchMovie, SearchAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(private val binding: ItemSearchBinding)
         : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(item: SearchItem) {
-            binding.tvTitle.text = item.Title
-            binding.tvYear.text = item.Year
-            binding.tvGenre.text = item.Genre.ifBlank { "Жанр неизвестен" }
+        fun bind(item: SearchMovie) {
+            binding.tvTitle.text = item.title
+            binding.tvYear.text = item.year
+            binding.tvGenre.text = item.genre.ifBlank { "Жанр неизвестен" }
 
             Glide.with(binding.imgPoster.context)
-                .load(item.Poster)
+                .load(item.posterUrl)
                 .placeholder(R.drawable.ic_empty_frame)
                 .into(binding.imgPoster)
 
@@ -38,8 +38,8 @@ class SearchAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) =
         holder.bind(getItem(position))
 
-    class DiffCallback : DiffUtil.ItemCallback<SearchItem>() {
-        override fun areItemsTheSame(a: SearchItem, b: SearchItem) = a.imdbID == b.imdbID
-        override fun areContentsTheSame(a: SearchItem, b: SearchItem) = a == b
+    class DiffCallback : DiffUtil.ItemCallback<SearchMovie>() {
+        override fun areItemsTheSame(a: SearchMovie, b: SearchMovie) = a.imdbId == b.imdbId
+        override fun areContentsTheSame(a: SearchMovie, b: SearchMovie) = a == b
     }
 }

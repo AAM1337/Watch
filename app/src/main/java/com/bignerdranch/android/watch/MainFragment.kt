@@ -33,7 +33,7 @@ class MainFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val adapter = MovieAdapter { movie, checked ->
-            viewModel.handleIntent(MainIntent.ToggleMovieSelection(movie.imdbID, checked))
+            viewModel.handleIntent(MainIntent.ToggleMovieSelection(movie.imdbId, checked))
         }
 
         binding.recyclerView.adapter = adapter

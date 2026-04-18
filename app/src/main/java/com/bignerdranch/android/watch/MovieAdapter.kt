@@ -1,23 +1,23 @@
 package com.bignerdranch.android.watch
 
 // ui/MovieAdapter.kt
-import DataBase.Movie
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bignerdranch.android.watch.domain.model.SavedMovie
 import com.bignerdranch.android.watch.databinding.ItemMovieBinding
 import com.bumptech.glide.Glide
 
 class MovieAdapter(
-    private val onCheckedChange: (Movie, Boolean) -> Unit
-) : ListAdapter<Movie, MovieAdapter.ViewHolder>(DiffCallback()) {
+    private val onCheckedChange: (SavedMovie, Boolean) -> Unit
+) : ListAdapter<SavedMovie, MovieAdapter.ViewHolder>(DiffCallback()) {
 
     inner class ViewHolder(private val binding: ItemMovieBinding)
         : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(movie: Movie) {
+        fun bind(movie: SavedMovie) {
             binding.tvTitle.text = movie.title
             binding.tvYear.text = movie.year
             binding.checkBox.setOnCheckedChangeListener(null)
@@ -45,8 +45,8 @@ class MovieAdapter(
         holder.bind(getItem(position))
     }
 
-    class DiffCallback : DiffUtil.ItemCallback<Movie>() {
-        override fun areItemsTheSame(old: Movie, new: Movie) = old.imdbID == new.imdbID
-        override fun areContentsTheSame(old: Movie, new: Movie) = old == new
+    class DiffCallback : DiffUtil.ItemCallback<SavedMovie>() {
+        override fun areItemsTheSame(old: SavedMovie, new: SavedMovie) = old.imdbId == new.imdbId
+        override fun areContentsTheSame(old: SavedMovie, new: SavedMovie) = old == new
     }
 }

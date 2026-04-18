@@ -1,18 +1,25 @@
 package DataBase
 
+import com.bignerdranch.android.watch.domain.model.MovieDetails
+import com.bignerdranch.android.watch.domain.model.SavedMovie
+import com.bignerdranch.android.watch.domain.model.SearchMovie
+import com.bignerdranch.android.watch.domain.repository.MovieRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
-class MovieRepository(private val dao: MovieDao) {
+class MovieRepositoryImpl(private val dao: MovieDao) : MovieRepository {
 
-    val allMovies = dao.getAllMovies()
+    override fun observeSavedMovies(): Flow<List<SavedMovie>> =
+        dao.getAllMovies().map { movies -> movies.map { it.toDomain() } }
 
-    suspend fun addMovie(movie: Movie) = dao.insert(movie)
+    override suspend fun addMovie(movie: SavedMovie) = dao.insert(movie.toEntity())
 
-    suspend fun deleteChecked(ids: List<String>) = dao.deleteByIds(ids)
+    override suspend fun deleteMovies(ids: List<String>) = dao.deleteByIds(ids)
 
-    suspend fun searchOnline(query: String, year: String?): List<SearchItem>? = coroutineScope {
+    override suspend fun searchMovies(query: String, year: String?): List<SearchMovie>? = coroutineScope {
         try {
             val response = RetrofitInstance.api.searchMovies(query, year)
             if (response.Response != "True") {
@@ -21,8 +28,8 @@ class MovieRepository(private val dao: MovieDao) {
                 response.Search
                     ?.map { item ->
                         async {
-                            val detail = getMovieDetail(item.imdbID)
-                            item.copy(Genre = detail?.Genre.orEmpty())
+                            val detail = getMovieDetails(item.imdbID)
+                            item.copy(Genre = detail?.genre.orEmpty()).toDomain()
                         }
                     }
                     ?.awaitAll()
@@ -32,12 +39,10 @@ class MovieRepository(private val dao: MovieDao) {
         }
     }
 
-    suspend fun getMovieDetail(imdbId: String): MovieDetail? {
-        return try {
-            val detail = RetrofitInstance.api.getMovieById(imdbId)
-            if (detail.Response == "True") detail else null
-        } catch (e: Exception) {
-            null
-        }
+    override suspend fun getMovieDetails(imdbId: String): MovieDetails? = try {
+        val detail = RetrofitInstance.api.getMovieById(imdbId)
+        if (detail.Response == "True") detail.toDomain() else null
+    } catch (e: Exception) {
+        null
     }
 }
